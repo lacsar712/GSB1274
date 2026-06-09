@@ -1,4 +1,5 @@
 import VehicleSafety from '../models/VehicleSafety.js';
+import VehicleSafetyAlert from '../models/VehicleSafetyAlert.js';
 import { normalizeRow } from '../utils/encoding.js';
 
 export const createSafetyRecord = async (req, res) => {
@@ -384,6 +385,99 @@ export const getHighRiskVehicles = async (req, res) => {
     res.status(500).json({
       success: false,
       message: '获取高风险车辆列表失败',
+      error: error.message
+    });
+  }
+};
+
+export const getAlertList = async (req, res) => {
+  try {
+    const {
+      vehicle_id,
+      alert_type,
+      alert_level,
+      start_date,
+      end_date,
+      page = 1,
+      page_size = 20
+    } = req.query;
+
+    const filters = {
+      vehicle_id,
+      alert_type,
+      alert_level,
+      start_date,
+      end_date,
+      limit: parseInt(page_size),
+      offset: (parseInt(page) - 1) * parseInt(page_size)
+    };
+
+    const [records, total] = await Promise.all([
+      VehicleSafetyAlert.findAll(filters),
+      VehicleSafetyAlert.count(filters)
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        list: records.map(r => normalizeRow(r)),
+        pagination: {
+          page: parseInt(page),
+          page_size: parseInt(page_size),
+          total,
+          total_pages: Math.ceil(total / parseInt(page_size))
+        }
+      }
+    });
+  } catch (error) {
+    console.error('获取预警列表失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '获取预警列表失败',
+      error: error.message
+    });
+  }
+};
+
+export const getAlertCount = async (req, res) => {
+  try {
+    const total = await VehicleSafetyAlert.count();
+    res.json({
+      success: true,
+      data: { total }
+    });
+  } catch (error) {
+    console.error('获取预警数量失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '获取预警数量失败',
+      error: error.message
+    });
+  }
+};
+
+export const markAlertHandled = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const success = await VehicleSafetyAlert.markHandled(id);
+
+    if (success) {
+      res.json({
+        success: true,
+        message: '预警已标记为已处理'
+      });
+    } else {
+      res.status(404).json({
+        success: false,
+        message: '预警不存在或已处理'
+      });
+    }
+  } catch (error) {
+    console.error('标记预警已处理失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '标记预警已处理失败',
       error: error.message
     });
   }

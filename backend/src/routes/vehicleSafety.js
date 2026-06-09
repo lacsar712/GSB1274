@@ -10,6 +10,9 @@ router.get('/event-distribution', vehicleSafetyController.getEventTypeDistributi
 router.get('/trend', vehicleSafetyController.getTrendData);
 router.get('/locations', vehicleSafetyController.getVehicleLocations);
 router.get('/high-risk', vehicleSafetyController.getHighRiskVehicles);
+router.get('/alerts', vehicleSafetyController.getAlertList);
+router.get('/alerts/count', vehicleSafetyController.getAlertCount);
+router.put('/alerts/:id/handle', vehicleSafetyController.markAlertHandled);
 router.get('/:id', vehicleSafetyController.getSafetyRecordById);
 router.put('/:id', vehicleSafetyController.updateSafetyRecord);
 router.put('/:id/status', vehicleSafetyController.updateStatus);

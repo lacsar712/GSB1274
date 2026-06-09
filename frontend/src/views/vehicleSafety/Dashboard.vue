@@ -1,6 +1,11 @@
 <template>
   <div class="vehicle-safety-dashboard">
     <div class="page-header">
+      <div class="header-left">
+        <el-badge :value="unhandledAlertCount" :hidden="unhandledAlertCount === 0" :max="99">
+          <span class="header-title">车辆安全监控</span>
+        </el-badge>
+      </div>
       <div class="header-actions">
         <CompanySelect v-model="selectedCompanyId" />
       </div>
@@ -112,37 +117,7 @@
         </el-card>
       </el-col>
       <el-col :span="8">
-        <el-card class="risk-card">
-          <template #header>
-            <span>高风险车辆</span>
-          </template>
-          <div class="risk-list">
-            <div 
-              v-for="vehicle in highRiskVehicles" 
-              :key="vehicle.vehicle_id"
-              class="risk-item"
-            >
-              <div class="risk-item-header">
-                <span class="vehicle-no">{{ vehicle.vehicle_no }}</span>
-                <el-tag type="danger" size="small">高风险</el-tag>
-              </div>
-              <div class="risk-item-content">
-                <div class="risk-stat">
-                  <span class="label">事件数:</span>
-                  <span class="value">{{ vehicle.event_count }}</span>
-                </div>
-                <div class="risk-stat">
-                  <span class="label">高危事件:</span>
-                  <span class="value danger">{{ vehicle.high_risk_count }}</span>
-                </div>
-              </div>
-              <div class="risk-item-footer">
-                <span class="time">{{ vehicle.last_event_time }}</span>
-              </div>
-            </div>
-            <el-empty v-if="highRiskVehicles.length === 0" description="暂无高风险车辆" />
-          </div>
-        </el-card>
+        <AlertInbox ref="alertInboxRef" @handled="onAlertHandled" />
       </el-col>
     </el-row>
 
@@ -189,9 +164,11 @@ import {
   getSafetyTrend, 
   getEventTypeDistribution,
   getVehicleLocations,
-  getHighRiskVehicles 
+  getHighRiskVehicles,
+  getAlertCount
 } from '@/api/vehicleSafety';
 import CompanySelect from '@/components/CompanySelect.vue';
+import AlertInbox from '@/components/AlertInbox.vue';
 
 const statistics = reactive({
   total_events: 0,
@@ -214,6 +191,8 @@ const highRiskVehicles = ref([]);
 const vehicleLocations = ref([]);
 const selectedVehicleId = ref(null);
 const selectedVehicle = computed(() => vehicleLocations.value.find(v => v.vehicle_id === selectedVehicleId.value));
+const unhandledAlertCount = ref(0);
+const alertInboxRef = ref(null);
 
 let trendChart = null;
 let typeChart = null;
@@ -318,6 +297,19 @@ const fetchHighRiskVehicles = async () => {
   } catch (error) {
     ElMessage.error('获取高风险车辆失败');
   }
+};
+
+const fetchAlertCount = async () => {
+  try {
+    const response = await getAlertCount();
+    if (response.success) {
+      unhandledAlertCount.value = response.data.total;
+    }
+  } catch {}
+};
+
+const onAlertHandled = (remainingCount) => {
+  unhandledAlertCount.value = remainingCount;
 };
 
 // 刷新位置
@@ -455,6 +447,7 @@ onMounted(() => {
   fetchEventTypeDistribution();
   fetchVehicleLocations();
   fetchHighRiskVehicles();
+  fetchAlertCount();
 
   window.addEventListener('resize', handleResize);
 });
@@ -481,8 +474,20 @@ watch(selectedCompanyId, async () => {
 
 .page-header {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 10px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+}
+
+.header-title {
+  font-size: 20px;
+  font-weight: bold;
+  color: #303133;
 }
 
 .stats-row {

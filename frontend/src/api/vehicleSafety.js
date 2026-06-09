@@ -96,3 +96,25 @@ export function getHighRiskVehicles(params) {
     params
   });
 }
+
+export function getAlertList(params) {
+  return request({
+    url: '/vehicle-safety/alerts',
+    method: 'get',
+    params
+  });
+}
+
+export function getAlertCount() {
+  return request({
+    url: '/vehicle-safety/alerts/count',
+    method: 'get'
+  });
+}
+
+export function markAlertHandled(id) {
+  return request({
+    url: `/vehicle-safety/alerts/${id}/handle`,
+    method: 'put'
+  });
+}
