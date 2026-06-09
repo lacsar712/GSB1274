@@ -46,10 +46,7 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-initMysqlCompanyConfigs();
-initMysqlDictionaries();
-initSequelizeAndTables();
-initMongoAndSeed();
+bootstrap();
 
 async function initMongoAndSeed() {
   try {
@@ -146,15 +143,14 @@ async function initMongoAndSeed() {
   }
 }
 
-async function initMysqlCompanyConfigs() {
+async function initMysqlFromSql(tableName, sqlFileName) {
   try {
     const [rows] = await pool.query(
       'SELECT COUNT(*) AS cnt FROM information_schema.tables WHERE table_schema = ? AND table_name = ?',
-      [process.env.DB_NAME || 'smart_logistics', 'company_configs']
+      [process.env.DB_NAME || 'smart_logistics', tableName]
     );
-    const exists = rows?.[0]?.cnt > 0;
-    if (exists) return;
-    const sql = await readFile(new URL('../database/company_configs.sql', import.meta.url), { encoding: 'utf-8' });
+    if (rows?.[0]?.cnt > 0) return;
+    const sql = await readFile(new URL(`../database/${sqlFileName}`, import.meta.url), { encoding: 'utf-8' });
     const statements = sql
       .split(';')
       .map(s => s.trim())
@@ -162,28 +158,40 @@ async function initMysqlCompanyConfigs() {
     for (const stmt of statements) {
       await pool.query(stmt);
     }
-  } catch (_) {
+    logger.info('数据库表初始化完成', { table: tableName });
+  } catch (err) {
+    logger.error('数据库表初始化失败', { table: tableName, error: err.message });
   }
 }
 
+async function initMysqlCompanyConfigs() {
+  await initMysqlFromSql('company_configs', 'company_configs.sql');
+}
+
 async function initMysqlDictionaries() {
-  try {
-    const [rows] = await pool.query(
-      'SELECT COUNT(*) AS cnt FROM information_schema.tables WHERE table_schema = ? AND table_name = ?',
-      [process.env.DB_NAME || 'smart_logistics', 'dictionaries']
-    );
-    const exists = rows?.[0]?.cnt > 0;
-    if (exists) return;
-    const sql = await readFile(new URL('../database/dictionaries.sql', import.meta.url), { encoding: 'utf-8' });
-    const statements = sql
-      .split(';')
-      .map(s => s.trim())
-      .filter(s => s.length > 0 && !s.startsWith('--'));
-    for (const stmt of statements) {
-      await pool.query(stmt);
-    }
-  } catch (_) {
-  }
+  await initMysqlFromSql('dictionaries', 'dictionaries.sql');
+}
+
+async function initMysqlCompanies() {
+  await initMysqlFromSql('companies', 'companies.sql');
+}
+
+async function initMysqlVehicleSafety() {
+  await initMysqlFromSql('vehicle_safety', 'vehicle_safety.sql');
+}
+
+async function bootstrap() {
+  await initMysqlCompanies();
+  await initMysqlCompanyConfigs();
+  await initMysqlDictionaries();
+  await initMysqlVehicleSafety();
+
+  initSequelizeAndTables();
+  initMongoAndSeed();
+
+  app.listen(PORT, () => {
+    logger.info('服务器启动', { port: PORT, env: process.env.NODE_ENV || 'development' });
+  });
 }
 
 async function ensureColumns(table, columns) {
@@ -361,11 +369,6 @@ app.use((err, req, res, next) => {
     message: '服务器内部错误',
     error: process.env.NODE_ENV === 'development' ? err.message : undefined
   });
-});
-
-// 启动服务器
-app.listen(PORT, () => {
-  logger.info('服务器启动', { port: PORT, env: process.env.NODE_ENV || 'development' });
 });
 
 export default app;
