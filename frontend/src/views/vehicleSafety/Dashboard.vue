@@ -1,6 +1,15 @@
 <template>
   <div class="vehicle-safety-dashboard">
     <div class="page-header">
+      <div class="header-title">
+        <h2>车辆安全监控中心</h2>
+        <el-badge :value="unhandledAlertCount" :hidden="unhandledAlertCount === 0" class="alert-badge" type="danger">
+          <el-button type="primary" @click="scrollToAlerts">
+            <el-icon><Bell /></el-icon>
+            预警中心
+          </el-button>
+        </el-badge>
+      </div>
       <div class="header-actions">
         <CompanySelect v-model="selectedCompanyId" />
       </div>
@@ -176,13 +185,23 @@
         </el-card>
       </el-col>
     </el-row>
+
+    <el-row :gutter="20" class="alerts-row" ref="alertsSectionRef">
+      <el-col :span="24">
+        <AlertInbox 
+          ref="alertInboxRef" 
+          :company-id="selectedCompanyId"
+          @count-change="handleAlertCountChange"
+        />
+      </el-col>
+    </el-row>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted, watch, computed } from 'vue';
+import { ref, reactive, onMounted, onUnmounted, watch, computed, nextTick } from 'vue';
 import { ElMessage } from 'element-plus';
-import { Warning, CircleClose, Clock, CircleCheck, Refresh, Location } from '@element-plus/icons-vue';
+import { Warning, CircleClose, Clock, CircleCheck, Refresh, Location, Bell } from '@element-plus/icons-vue';
 import * as echarts from 'echarts';
 import { 
   getSafetyStatistics, 
@@ -192,6 +211,7 @@ import {
   getHighRiskVehicles 
 } from '@/api/vehicleSafety';
 import CompanySelect from '@/components/CompanySelect.vue';
+import AlertInbox from '@/components/AlertInbox.vue';
 
 const statistics = reactive({
   total_events: 0,
@@ -214,6 +234,10 @@ const highRiskVehicles = ref([]);
 const vehicleLocations = ref([]);
 const selectedVehicleId = ref(null);
 const selectedVehicle = computed(() => vehicleLocations.value.find(v => v.vehicle_id === selectedVehicleId.value));
+
+const unhandledAlertCount = ref(0);
+const alertInboxRef = ref(null);
+const alertsSectionRef = ref(null);
 
 let trendChart = null;
 let typeChart = null;
@@ -440,6 +464,18 @@ const handleResize = () => {
   typeChart?.resize();
 };
 
+// 处理预警数量变化
+const handleAlertCountChange = (count) => {
+  unhandledAlertCount.value = count;
+};
+
+// 滚动到预警区域
+const scrollToAlerts = () => {
+  if (alertsSectionRef.value) {
+    alertsSectionRef.value.scrollIntoView({ behavior: 'smooth' });
+  }
+};
+
 onMounted(() => {
   // 设置默认日期范围为最近7天
   const endDate = new Date();
@@ -471,6 +507,7 @@ watch(selectedCompanyId, async () => {
   await fetchEventTypeDistribution();
   await fetchVehicleLocations();
   await fetchHighRiskVehicles();
+  alertInboxRef.value?.refresh();
 });
 </script>
 
@@ -481,8 +518,31 @@ watch(selectedCompanyId, async () => {
 
 .page-header {
   display: flex;
-  justify-content: flex-end;
-  margin-bottom: 10px;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.header-title h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: bold;
+  color: #303133;
+}
+
+.alert-badge {
+  margin-left: 8px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
 }
 
 .stats-row {
@@ -670,5 +730,9 @@ watch(selectedCompanyId, async () => {
 .chart-container {
   width: 100%;
   height: 320px;
+}
+
+.alerts-row {
+  margin-bottom: 20px;
 }
 </style>

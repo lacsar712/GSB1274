@@ -96,3 +96,29 @@ export function getHighRiskVehicles(params) {
     params
   });
 }
+
+// 获取预警列表
+export function getAlertList(params) {
+  return request({
+    url: '/vehicle-safety/alerts/list',
+    method: 'get',
+    params
+  });
+}
+
+// 获取未处理预警数量
+export function getUnhandledAlertCount(params) {
+  return request({
+    url: '/vehicle-safety/alerts/unhandled-count',
+    method: 'get',
+    params
+  });
+}
+
+// 标记预警为已处理
+export function markAlertAsHandled(id) {
+  return request({
+    url: `/vehicle-safety/alerts/${id}/handle`,
+    method: 'put'
+  });
+}
