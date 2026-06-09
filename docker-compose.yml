@@ -1,0 +1,110 @@
+version: '3.8'
+
+services:
+  # MongoDB
+  mongo:
+    image: mongo:6
+    container_name: smart-logistics-mongo
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - smart-logistics-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand({ ping: 1 })"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  # MySQL数据库
+  mysql:
+    image: mysql:8.0
+    container_name: smart-logistics-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root123456
+      MYSQL_DATABASE: smart_logistics
+      MYSQL_USER: logistics_user
+      MYSQL_PASSWORD: logistics_pass
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database:/docker-entrypoint-initdb.d
+      - ./backend/database:/docker-entrypoint-initdb.d/backend
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    networks:
+      - smart-logistics-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot123456"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 后端服务
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: smart-logistics-backend
+    restart: always
+    environment:
+      PORT: 3000
+      NODE_ENV: production
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: logistics_user
+      DB_PASSWORD: logistics_pass
+      DB_NAME: smart_logistics
+      MONGO_URI: mongodb://mongo:27017/smart_logistics
+      JWT_SECRET: your_jwt_secret_key_change_in_production
+      JWT_EXPIRES_IN: 7d
+      UPLOAD_PATH: ./uploads
+      MAX_FILE_SIZE: 5242880
+    ports:
+      - "8274:3000"
+    volumes:
+      - ./backend/uploads:/app/uploads
+    depends_on:
+      mysql:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+    networks:
+      - smart-logistics-network
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # 前端服务
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: smart-logistics-frontend
+    restart: always
+    environment:
+      VITE_API_BASE_URL: /api
+    ports:
+      - "3274:80"
+    depends_on:
+      - backend
+    networks:
+      - smart-logistics-network
+    stdin_open: true
+    tty: true
+
+volumes:
+  mysql_data:
+    driver: local
+  mongo_data:
+    driver: local
+
+networks:
+  smart-logistics-network:
+    driver: bridge

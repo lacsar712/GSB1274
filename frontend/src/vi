@@ -1,0 +1,356 @@
+<template>
+  <div class="user-permissions">
+    <div class="page-header">
+      <h2>用户权限管理</h2>
+    </div>
+
+    <!-- 筛选条件 -->
+    <el-card class="filter-card" shadow="never">
+      <el-form :inline="true" :model="filters" class="filter-form">
+        <el-form-item label="角色">
+          <el-select v-model="filters.role" placeholder="全部角色" clearable>
+            <el-option label="管理员" value="admin" />
+            <el-option label="运营人员" value="operator" />
+            <el-option label="普通用户" value="user" />
+            <el-option label="访客" value="guest" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-select v-model="filters.status" placeholder="全部状态" clearable>
+            <el-option label="正常" value="active" />
+            <el-option label="禁用" value="disabled" />
+            <el-option label="锁定" value="locked" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="关键词">
+          <el-input
+            v-model="filters.keyword"
+            placeholder="搜索用户名或邮箱"
+            clearable
+            style="width: 200px;"
+          />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="handleSearch">查询</el-button>
+          <el-button @click="handleReset">重置</el-button>
+        </el-form-item>
+      </el-form>
+    </el-card>
+
+    <!-- 用户列表 -->
+    <el-card class="users-card" shadow="never">
+      <el-table
+        v-loading="loading"
+        :data="users"
+        style="width: 100%"
+      >
+        <el-table-column prop="id" label="用户ID" width="80" />
+        <el-table-column prop="username" label="用户名" width="150" />
+        <el-table-column prop="email" label="邮箱" width="200" />
+        <el-table-column label="角色" width="120">
+          <template #default="{ row }">
+            <el-tag :type="getRoleType(row.role)">
+              {{ getRoleName(row.role) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" width="100">
+          <template #default="{ row }">
+            <el-tag :type="getStatusType(row.status)">
+              {{ getStatusName(row.status) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="权限" min-width="200">
+          <template #default="{ row }">
+            <el-tag
+              v-for="permission in getPermissionList(row.permissions)"
+              :key="permission"
+              size="small"
+              style="margin-right: 5px;"
+            >
+              {{ permission }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="last_login_at" label="最后登录" width="180">
+          <template #default="{ row }">
+            {{ formatDate(row.last_login_at) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="150" fixed="right">
+          <template #default="{ row }">
+            <el-button
+              type="primary"
+              size="small"
+              @click="editPermissions(row)"
+            >
+              编辑权限
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <!-- 空状态 -->
+      <el-empty v-if="users.length === 0 && !loading" description="暂无用户数据" />
+
+      <!-- 分页 -->
+      <div class="pagination-container">
+        <el-pagination
+          v-model:current-page="pagination.page"
+          v-model:page-size="pagination.pageSize"
+          :total="pagination.total"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="handleSizeChange"
+          @current-change="handlePageChange"
+        />
+      </div>
+    </el-card>
+
+    <!-- 编辑权限对话框 -->
+    <el-dialog
+      v-model="dialogVisible"
+      title="编辑用户权限"
+      width="600px"
+    >
+      <el-form :model="editForm" label-width="100px">
+        <el-form-item label="用户名">
+          <el-input v-model="editForm.username" disabled />
+        </el-form-item>
+        <el-form-item label="邮箱">
+          <el-input v-model="editForm.email" disabled />
+        </el-form-item>
+        <el-form-item label="角色">
+          <el-select v-model="editForm.role" style="width: 100%;">
+            <el-option label="管理员" value="admin" />
+            <el-option label="运营人员" value="operator" />
+            <el-option label="普通用户" value="user" />
+            <el-option label="访客" value="guest" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="权限">
+          <el-checkbox-group v-model="editForm.permissions">
+            <el-row :gutter="10">
+              <el-col :span="12" v-for="permission in availablePermissions" :key="permission.value">
+                <el-checkbox :label="permission.value">
+                  {{ permission.label }}
+                </el-checkbox>
+              </el-col>
+            </el-row>
+          </el-checkbox-group>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="savePermissions">保存</el-button>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup>
+import { ref, reactive, onMounted } from 'vue';
+import { ElMessage } from 'element-plus';
+import { getOperationUsers, updateUserPermissions } from '@/api/operations';
+
+const loading = ref(false);
+const users = ref([]);
+const dialogVisible = ref(false);
+
+const filters = reactive({
+  role: '',
+  status: '',
+  keyword: ''
+});
+
+const pagination = reactive({
+  page: 1,
+  pageSize: 20,
+  total: 0
+});
+
+const editForm = reactive({
+  userId: null,
+  username: '',
+  email: '',
+  role: '',
+  permissions: []
+});
+
+const availablePermissions = [
+  { label: '用户管理', value: 'user:manage' },
+  { label: '角色管理', value: 'role:manage' },
+  { label: '权限管理', value: 'permission:manage' },
+  { label: '系统配置', value: 'system:config' },
+  { label: '数据查看', value: 'data:view' },
+  { label: '数据编辑', value: 'data:edit' },
+  { label: '数据删除', value: 'data:delete' },
+  { label: '日志查看', value: 'log:view' },
+  { label: '监控查看', value: 'monitor:view' },
+  { label: '报表查看', value: 'report:view' },
+  { label: '报表导出', value: 'report:export' },
+  { label: '审核管理', value: 'audit:manage' }
+];
+
+const fetchUsers = async () => {
+  loading.value = true;
+  try {
+    const params = {
+      page: pagination.page,
+      pageSize: pagination.pageSize,
+      ...filters
+    };
+    const response = await getOperationUsers(params);
+    if (response.success) {
+      users.value = response.data.list;
+      pagination.total = response.data.pagination.total;
+    }
+  } catch (error) {
+    ElMessage.error('获取用户列表失败');
+  } finally {
+    loading.value = false;
+  }
+};
+
+const handleSearch = () => {
+  pagination.page = 1;
+  fetchUsers();
+};
+
+const handleReset = () => {
+  Object.assign(filters, {
+    role: '',
+    status: '',
+    keyword: ''
+  });
+  handleSearch();
+};
+
+const handlePageChange = (page) => {
+  pagination.page = page;
+  fetchUsers();
+};
+
+const handleSizeChange = (size) => {
+  pagination.pageSize = size;
+  pagination.page = 1;
+  fetchUsers();
+};
+
+const editPermissions = (user) => {
+  editForm.userId = user.id;
+  editForm.username = user.username;
+  editForm.email = user.email;
+  editForm.role = user.role;
+  editForm.permissions = Array.isArray(user.permissions) 
+    ? user.permissions 
+    : (user.permissions ? user.permissions.split(',') : []);
+  dialogVisible.value = true;
+};
+
+const savePermissions = async () => {
+  try {
+    const response = await updateUserPermissions({
+      userId: editForm.userId,
+      role: editForm.role,
+      permissions: editForm.permissions
+    });
+    if (response.success) {
+      ElMessage.success('权限更新成功');
+      dialogVisible.value = false;
+      fetchUsers();
+    }
+  } catch (error) {
+    ElMessage.error('权限更新失败');
+  }
+};
+
+const formatDate = (date) => {
+  if (!date) return '-';
+  return new Date(date).toLocaleString('zh-CN');
+};
+
+const getRoleType = (role) => {
+  const typeMap = {
+    admin: 'danger',
+    operator: 'warning',
+    user: 'success',
+    guest: 'info'
+  };
+  return typeMap[role] || 'info';
+};
+
+const getRoleName = (role) => {
+  const nameMap = {
+    admin: '管理员',
+    operator: '运营人员',
+    user: '普通用户',
+    guest: '访客'
+  };
+  return nameMap[role] || role;
+};
+
+const getStatusType = (status) => {
+  const typeMap = {
+    active: 'success',
+    disabled: 'warning',
+    locked: 'danger'
+  };
+  return typeMap[status] || 'info';
+};
+
+const getStatusName = (status) => {
+  const nameMap = {
+    active: '正常',
+    disabled: '禁用',
+    locked: '锁定'
+  };
+  return nameMap[status] || status;
+};
+
+const getPermissionList = (permissions) => {
+  if (!permissions) return [];
+  if (Array.isArray(permissions)) return permissions;
+  if (typeof permissions === 'string') return permissions.split(',');
+  return [];
+};
+
+onMounted(() => {
+  fetchUsers();
+});
+</script>
+
+<style scoped>
+.user-permissions {
+  padding: 20px;
+}
+
+.page-header {
+  margin-bottom: 20px;
+}
+
+.page-header h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.filter-card {
+  margin-bottom: 20px;
+}
+
+.filter-form {
+  margin-bottom: 0;
+}
+
+.users-card {
+  min-height: 400px;
+}
+
+.pagination-container {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
+</style>

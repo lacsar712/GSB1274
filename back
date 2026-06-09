@@ -1,0 +1,286 @@
+import pool from '../config/database.js';
+
+/**
+ * 获取大屏数据
+ */
+export const getDashboardData = async (req, res) => {
+  try {
+    const { company_id } = req.query;
+
+    let whereClause = '1=1';
+    const params = [];
+    let paramIndex = 1;
+
+    if (company_id) {
+      whereClause += ` AND company_id = $${paramIndex}`;
+      params.push(company_id);
+      paramIndex++;
+    }
+
+    // 实时统计数据
+    const realtimeQuery = `
+      SELECT 
+        (SELECT COUNT(*) FROM regulation_businesses WHERE ${whereClause}) as total_businesses,
+        (SELECT COUNT(*) FROM regulation_businesses WHERE ${whereClause} AND status = 'active') as active_businesses,
+        (SELECT COUNT(*) FROM regulation_inspections WHERE ${whereClause}) as total_inspections,
+        (SELECT COUNT(*) FROM regulation_inspections WHERE ${whereClause} AND status = 'in_progress') as ongoing_inspections,
+        (SELECT COUNT(*) FROM waybills WHERE ${whereClause}) as total_waybills,
+        (SELECT COUNT(*) FROM waybills WHERE ${whereClause} AND regulation_status = 'pending') as pending_waybills,
+        (SELECT COUNT(*) FROM regulation_businesses WHERE ${whereClause} AND risk_level = 'high') as high_risk_businesses,
+        (SELECT COUNT(*) FROM waybills WHERE ${whereClause} AND risk_level = 'high') as high_risk_waybills
+    `;
+
+    // 近7天趋势数据
+    const trendQuery = `
+      SELECT 
+        TO_CHAR(date_series, 'MM-DD') as date,
+        COALESCE(b.count, 0) as businesses,
+        COALESCE(i.count, 0) as inspections,
+        COALESCE(w.count, 0) as waybills
+      FROM generate_series(
+        CURRENT_DATE - INTERVAL '6 days',
+        CURRENT_DATE,
+        '1 day'::interval
+      ) AS date_series
+      LEFT JOIN (
+        SELECT DATE(created_at) as date, COUNT(*) as count
+        FROM regulation_businesses
+        WHERE ${whereClause} AND created_at >= CURRENT_DATE - INTERVAL '6 days'
+        GROUP BY DATE(created_at)
+      ) b ON DATE(date_series) = b.date
+      LEFT JOIN (
+        SELECT DATE(created_at) as date, COUNT(*) as count
+        FROM regulation_inspections
+        WHERE ${whereClause} AND created_at >= CURRENT_DATE - INTERVAL '6 days'
+        GROUP BY DATE(created_at)
+      ) i ON DATE(date_series) = i.date
+      LEFT JOIN (
+        SELECT DATE(created_at) as date, COUNT(*) as count
+        FROM waybills
+        WHERE ${whereClause} AND created_at >= CURRENT_DATE - INTERVAL '6 days'
+        GROUP BY DATE(created_at)
+      ) w ON DATE(date_series) = w.date
+      ORDER BY date_series
+    `;
+
+    // 风险分布
+    const riskDistributionQuery = `
+      SELECT 
+        risk_level,
+        COUNT(*) as count
+      FROM (
+        SELECT risk_level FROM regulation_businesses WHERE ${whereClause}
+        UNION ALL
+        SELECT risk_level FROM waybills WHERE ${whereClause}
+      ) combined
+      GROUP BY risk_level
+    `;
+
+    // 抽检结果分布
+    const inspectionResultQuery = `
+      SELECT 
+        result,
+        COUNT(*) as count
+      FROM regulation_inspections
+      WHERE ${whereClause} AND result IS NOT NULL
+      GROUP BY result
+    `;
+
+    // 监管状态分布
+    const regulationStatusQuery = `
+      SELECT 
+        regulation_status,
+        COUNT(*) as count
+      FROM waybills
+      WHERE ${whereClause} AND regulation_status IS NOT NULL
+      GROUP BY regulation_status
+    `;
+
+    // TOP企业（按业务数）
+    const topCompaniesQuery = `
+      SELECT 
+        c.name as company_name,
+        COUNT(rb.id) as business_count,
+        COUNT(CASE WHEN rb.risk_level = 'high' THEN 1 END) as high_risk_count
+      FROM companies c
+      LEFT JOIN regulation_businesses rb ON c.id = rb.company_id
+      WHERE ${whereClause.replace('company_id', 'rb.company_id')}
+      GROUP BY c.id, c.name
+      ORDER BY business_count DESC
+      LIMIT 10
+    `;
+
+    // 最近抽检记录
+    const recentInspectionsQuery = `
+      SELECT 
+        ri.inspection_code,
+        ri.inspection_title,
+        c.name as company_name,
+        ri.status,
+        ri.result,
+        ri.created_at
+      FROM regulation_inspections ri
+      LEFT JOIN companies c ON ri.company_id = c.id
+      WHERE ${whereClause.replace('company_id', 'ri.company_id')}
+      ORDER BY ri.created_at DESC
+      LIMIT 10
+    `;
+
+    // 预警信息
+    const alertsQuery = `
+      SELECT 
+        'high_risk_business' as type,
+        business_name as title,
+        '高风险业务' as message,
+        created_at
+      FROM regulation_businesses
+      WHERE ${whereClause} AND risk_level = 'high'
+      UNION ALL
+      SELECT 
+        'failed_inspection' as type,
+        inspection_title as title,
+        '抽检未通过' as message,
+        created_at
+      FROM regulation_inspections
+      WHERE ${whereClause} AND result = 'failed'
+      UNION ALL
+      SELECT 
+        'high_risk_waybill' as type,
+        waybill_number as title,
+        '高风险运单' as message,
+        created_at
+      FROM waybills
+      WHERE ${whereClause} AND risk_level = 'high'
+      ORDER BY created_at DESC
+      LIMIT 20
+    `;
+
+    const [
+      realtimeResult,
+      trendResult,
+      riskDistributionResult,
+      inspectionResultResult,
+      regulationStatusResult,
+      topCompaniesResult,
+      recentInspectionsResult,
+      alertsResult
+    ] = await Promise.all([
+      pool.query(realtimeQuery, params),
+      pool.query(trendQuery, params),
+      pool.query(riskDistributionQuery, params),
+      pool.query(inspectionResultQuery, params),
+      pool.query(regulationStatusQuery, params),
+      pool.query(topCompaniesQuery, params),
+      pool.query(recentInspectionsQuery, params),
+      pool.query(alertsQuery, params)
+    ]);
+
+    const dashboardData = {
+      realtime: realtimeResult.rows[0],
+      trend: trendResult.rows,
+      risk_distribution: riskDistributionResult.rows,
+      inspection_result: inspectionResultResult.rows,
+      regulation_status: regulationStatusResult.rows,
+      top_companies: topCompaniesResult.rows,
+      recent_inspections: recentInspectionsResult.rows,
+      alerts: alertsResult.rows
+    };
+
+    res.json({
+      success: true,
+      data: dashboardData
+    });
+  } catch (error) {
+    console.error('获取大屏数据失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '获取大屏数据失败',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * 获取大屏配置
+ */
+export const getDashboardConfig = async (req, res) => {
+  try {
+    const { user_id } = req.query;
+
+    const query = `
+      SELECT config
+      FROM regulation_dashboard_configs
+      WHERE user_id = $1
+      ORDER BY updated_at DESC
+      LIMIT 1
+    `;
+
+    const result = await pool.query(query, [user_id || 1]);
+
+    if (result.rows.length > 0) {
+      res.json({
+        success: true,
+        data: result.rows[0].config
+      });
+    } else {
+      // 返回默认配置
+      res.json({
+        success: true,
+        data: {
+          theme: 'dark',
+          refresh_interval: 30000,
+          modules: {
+            realtime_stats: true,
+            trend_chart: true,
+            risk_distribution: true,
+            inspection_result: true,
+            top_companies: true,
+            recent_inspections: true,
+            alerts: true
+          },
+          layout: 'default'
+        }
+      });
+    }
+  } catch (error) {
+    console.error('获取大屏配置失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '获取大屏配置失败',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * 更新大屏配置
+ */
+export const updateDashboardConfig = async (req, res) => {
+  try {
+    const { user_id = 1 } = req.body;
+    const config = req.body.config;
+
+    const query = `
+      INSERT INTO regulation_dashboard_configs (user_id, config, updated_at)
+      VALUES ($1, $2, NOW())
+      ON CONFLICT (user_id)
+      DO UPDATE SET config = $2, updated_at = NOW()
+      RETURNING *
+    `;
+
+    const result = await pool.query(query, [user_id, JSON.stringify(config)]);
+
+    res.json({
+      success: true,
+      message: '大屏配置更新成功',
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('更新大屏配置失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '更新大屏配置失败',
+      error: error.message
+    });
+  }
+};

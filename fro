@@ -1,0 +1,35 @@
+import request from '../utils/request';
+
+/**
+ * 获取监管概览
+ */
+export function getOverview(params) {
+  return request({
+    url: '/api/regulation/statistics/overview',
+    method: 'get',
+    params
+  });
+}
+
+/**
+ * 获取违规统计数据
+ */
+export function getViolations(params) {
+  return request({
+    url: '/api/regulation/statistics/violations',
+    method: 'get',
+    params
+  });
+}
+
+/**
+ * 导出统计数据
+ */
+export function exportStatistics(params) {
+  return request({
+    url: '/api/regulation/statistics/export',
+    method: 'get',
+    params,
+    responseType: 'blob'
+  });
+}

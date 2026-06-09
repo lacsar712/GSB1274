@@ -1,0 +1,35 @@
+-- 用户偏好设置表
+CREATE TABLE IF NOT EXISTS user_preferences (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT NOT NULL,
+  preferences JSON NOT NULL COMMENT '用户偏好设置JSON数据',
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES company_users(id) ON DELETE CASCADE,
+  UNIQUE KEY uk_user_id (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户偏好设置表';
+
+-- 插入默认偏好设置
+INSERT INTO user_preferences (user_id, preferences, created_at, updated_at)
+SELECT 
+  id,
+  JSON_OBJECT(
+    'theme', 'light',
+    'language', 'zh-CN',
+    'timezone', 'Asia/Shanghai',
+    'dateFormat', 'YYYY-MM-DD',
+    'timeFormat', '24',
+    'desktopNotification', true,
+    'soundNotification', true,
+    'emailNotification', false,
+    'notificationTypes', JSON_ARRAY('waybill', 'message', 'system'),
+    'pageSize', 20,
+    'tableDensity', 'default',
+    'sidebarCollapsed', false,
+    'enableShortcuts', true
+  ) as preferences,
+  NOW() as created_at,
+  NOW() as updated_at
+FROM company_users
+WHERE status = 'active'
+ON DUPLICATE KEY UPDATE updated_at = NOW();

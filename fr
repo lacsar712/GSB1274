@@ -1,0 +1,120 @@
+import request from '../utils/request';
+
+/**
+ * 获取车辆列表
+ * @param {Object} params - 查询参数
+ * @param {string} params.plate_number - 车牌号
+ * @param {string} params.vehicle_type - 车辆类型
+ * @param {number} params.carrier_id - 承运人ID
+ * @param {string} params.status - 状态
+ * @param {number} params.page - 页码
+ * @param {number} params.pageSize - 每页数量
+ */
+export function getVehicles(params) {
+  return request({
+    url: '/api/vehicles',
+    method: 'get',
+    params
+  });
+}
+
+/**
+ * 获取车辆详情
+ * @param {number} vehicleId - 车辆ID
+ */
+export function getVehicleById(vehicleId) {
+  return request({
+    url: `/api/vehicles/${vehicleId}`,
+    method: 'get'
+  });
+}
+
+/**
+ * 创建车辆
+ * @param {Object} data - 车辆数据
+ */
+export function createVehicle(data) {
+  return request({
+    url: '/api/vehicles',
+    method: 'post',
+    data
+  });
+}
+
+/**
+ * 更新车辆
+ * @param {number} vehicleId - 车辆ID
+ * @param {Object} data - 车辆数据
+ */
+export function updateVehicle(vehicleId, data) {
+  return request({
+    url: `/api/vehicles/${vehicleId}`,
+    method: 'put',
+    data
+  });
+}
+
+/**
+ * 删除车辆
+ * @param {number} vehicleId - 车辆ID
+ */
+export function deleteVehicle(vehicleId) {
+  return request({
+    url: `/api/vehicles/${vehicleId}`,
+    method: 'delete'
+  });
+}
+
+/**
+ * 更新车辆状态
+ * @param {number} vehicleId - 车辆ID
+ * @param {string} status - 状态
+ */
+export function updateVehicleStatus(vehicleId, status) {
+  return request({
+    url: `/api/vehicles/${vehicleId}/status`,
+    method: 'patch',
+    data: { status }
+  });
+}
+
+/**
+ * 更新车辆位置
+ * @param {number} vehicleId - 车辆ID
+ * @param {Object} locationData - 位置数据
+ * @param {string} locationData.current_location - 当前位置
+ * @param {number} locationData.latitude - 纬度
+ * @param {number} locationData.longitude - 经度
+ */
+export function updateVehicleLocation(vehicleId, locationData) {
+  return request({
+    url: `/api/vehicles/${vehicleId}/location`,
+    method: 'patch',
+    data: locationData
+  });
+}
+
+/**
+ * 获取车辆统计信息
+ * @param {number} vehicleId - 车辆ID
+ */
+export function getVehicleStatistics(vehicleId) {
+  return request({
+    url: `/api/vehicles/${vehicleId}/statistics`,
+    method: 'get'
+  });
+}
+
+/**
+ * 获取所有车辆位置（用于地图展示）
+ * @param {Object} params - 查询参数
+ * @param {string} params.status - 状态
+ * @param {number} params.carrier_id - 承运人ID
+ */
+export function getVehicleLocations(params) {
+  return request({
+    url: '/api/vehicles/locations',
+    method: 'get',
+    params
+  });
+}

@@ -1,0 +1,21 @@
+import express from 'express';
+import * as regulationSystemController from '../controllers/regulationSystemController.js';
+
+const router = express.Router();
+
+// 获取系统配置
+router.get('/config', regulationSystemController.getConfig);
+
+// 更新系统配置
+router.put('/config', regulationSystemController.updateConfig);
+
+// 获取用户列表
+router.get('/users', regulationSystemController.getUsers);
+
+// 更新用户权限
+router.put('/users/:userId/permissions', regulationSystemController.updateUserPermissions);
+
+// 获取操作日志
+router.get('/logs', regulationSystemController.getOperationLogs);
+
+export default router;

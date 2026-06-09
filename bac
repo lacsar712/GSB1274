@@ -1,0 +1,30 @@
+import express from 'express';
+import * as indicatorController from '../controllers/indicatorController.js';
+
+const router = express.Router();
+
+// 获取指标列表（分页）
+router.get('/', indicatorController.getIndicators);
+
+// 获取所有指标（不分页）
+router.get('/all', indicatorController.getAllIndicators);
+
+// 获取指标分类列表
+router.get('/categories', indicatorController.getIndicatorCategories);
+
+// 获取单个指标详情
+router.get('/:indicatorId', indicatorController.getIndicatorById);
+
+// 创建指标
+router.post('/', indicatorController.createIndicator);
+
+// 更新指标
+router.put('/:indicatorId', indicatorController.updateIndicator);
+
+// 删除指标
+router.delete('/:indicatorId', indicatorController.deleteIndicator);
+
+// 批量删除指标
+router.post('/batch/delete', indicatorController.batchDeleteIndicators);
+
+export default router;

@@ -1,0 +1,32 @@
+# 依赖目录
+node_modules/
+__pycache__/
+.venv/
+target/
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# 日志
+*.log
+logs/
+
+# 环境配置
+.env
+.env.local
+
+# 文档
+README.md
+user_rule.md
+
+# 临时文件
+*.tmp
+*.swp
+*~
+.DS_Store

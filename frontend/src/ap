@@ -1,0 +1,44 @@
+import request from '@/utils/request';
+
+// 获取用户信息
+export const getUserInfo = (id) => {
+  return request({
+    url: `/users/${id}`,
+    method: 'get'
+  });
+};
+
+// 更新用户信息
+export const updateUserInfo = (id, data) => {
+  return request({
+    url: `/users/${id}`,
+    method: 'put',
+    data
+  });
+};
+
+// 修改密码
+export const changePassword = (id, data) => {
+  return request({
+    url: `/users/${id}/password`,
+    method: 'put',
+    data
+  });
+};
+
+// 获取用户偏好设置
+export const getUserPreferences = (id) => {
+  return request({
+    url: `/users/${id}/preferences`,
+    method: 'get'
+  });
+};
+
+// 更新用户偏好设置
+export const updateUserPreferences = (id, data) => {
+  return request({
+    url: `/users/${id}/preferences`,
+    method: 'put',
+    data
+  });
+};

@@ -1,0 +1,469 @@
+# 运营用户个人管理中心文档
+
+## 概述
+
+运营用户个人管理中心提供用户个人信息管理、密码修改和偏好设置功能。
+
+## 功能模块
+
+### 1. 个人信息管理
+
+#### 前端页面
+- **文件路径**: [`frontend/src/views/user/Profile.vue`](../frontend/src/views/user/Profile.vue)
+- **路由**: `/user/profile`
+- **功能特性**:
+  - 展示用户基本信息（用户名、邮箱、手机号等）
+  - 支持编辑个人信息
+  - 头像上传功能
+  - 信息验证和保存
+
+#### 后端接口
+
+##### 获取用户信息
+```
+GET /api/users/{id}
+```
+
+**响应示例**:
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "username": "admin",
+    "email": "admin@example.com",
+    "phone": "13800138000",
+    "avatar": "/uploads/avatars/user1.jpg",
+    "role": "admin",
+    "status": "active",
+    "created_at": "2026-01-01T00:00:00Z",
+    "updated_at": "2026-02-05T10:00:00Z",
+    "last_login_at": "2026-02-05T15:00:00Z"
+  }
+}
+```
+
+##### 更新用户信息
+```
+PUT /api/users/{id}
+```
+
+**请求体**:
+```json
+{
+  "username": "admin",
+  "email": "admin@example.com",
+  "phone": "13800138000",
+  "avatar": "/uploads/avatars/user1.jpg"
+}
+```
+
+**响应示例**:
+```json
+{
+  "success": true,
+  "message": "用户信息更新成功",
+  "data": {
+    "id": 1,
+    "username": "admin",
+    "email": "admin@example.com",
+    "phone": "13800138000",
+    "avatar": "/uploads/avatars/user1.jpg",
+    "updated_at": "2026-02-05T15:30:00Z"
+  }
+}
+```
+
+---
+
+### 2. 密码修改
+
+#### 前端页面
+- **文件路径**: [`frontend/src/views/user/ChangePassword.vue`](../frontend/src/views/user/ChangePassword.vue)
+- **路由**: `/user/change-password`
+- **功能特性**:
+  - 输入当前密码验证
+  - 新密码输入和确认
+  - 密码强度验证
+  - 密码规则提示
+  - 修改成功后自动登出
+
+#### 后端接口
+
+##### 修改密码
+```
+PUT /api/users/{id}/password
+```
+
+**请求体**:
+```json
+{
+  "oldPassword": "old_password_123",
+  "newPassword": "new_password_456",
+  "confirmPassword": "new_password_456"
+}
+```
+
+**响应示例**:
+```json
+{
+  "success": true,
+  "message": "密码修改成功，请重新登录"
+}
+```
+
+**错误响应**:
+```json
+{
+  "success": false,
+  "message": "当前密码不正确"
+}
+```
+
+---
+
+### 3. 偏好设置
+
+#### 前端页面
+- **文件路径**: [`frontend/src/views/user/Preferences.vue`](../frontend/src/views/user/Preferences.vue)
+- **路由**: `/user/preferences`
+- **功能特性**:
+  - 界面主题设置（浅色/深色/自动）
+  - 语言设置
+  - 时区设置
+  - 通知偏好设置
+  - 显示密度设置
+  - 默认页面设置
+
+#### 后端接口
+
+##### 获取用户偏好设置
+```
+GET /api/users/{id}/preferences
+```
+
+**响应示例**:
+```json
+{
+  "success": true,
+  "data": {
+    "theme": "light",
+    "language": "zh-CN",
+    "timezone": "Asia/Shanghai",
+    "notifications": {
+      "email": true,
+      "push": true,
+      "sms": false
+    },
+    "display": {
+      "density": "default",
+      "sidebar_collapsed": false
+    },
+    "default_page": "/dashboard"
+  }
+}
+```
+
+##### 更新用户偏好设置
+```
+PUT /api/users/{id}/preferences
+```
+
+**请求体**:
+```json
+{
+  "theme": "dark",
+  "language": "zh-CN",
+  "timezone": "Asia/Shanghai",
+  "notifications": {
+    "email": true,
+    "push": true,
+    "sms": false
+  },
+  "display": {
+    "density": "compact",
+    "sidebar_collapsed": true
+  },
+  "default_page": "/operations/dashboard"
+}
+```
+
+**响应示例**:
+```json
+{
+  "success": true,
+  "message": "偏好设置更新成功",
+  "data": {
+    "theme": "dark",
+    "language": "zh-CN",
+    "timezone": "Asia/Shanghai",
+    "notifications": {
+      "email": true,
+      "push": true,
+      "sms": false
+    },
+    "display": {
+      "density": "compact",
+      "sidebar_collapsed": true
+    },
+    "default_page": "/operations/dashboard"
+  }
+}
+```
+
+---
+
+## 数据库表结构
+
+### users 表
+```sql
+CREATE TABLE IF NOT EXISTS users (
+  id SERIAL PRIMARY KEY,
+  username VARCHAR(100) UNIQUE NOT NULL,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  password VARCHAR(255) NOT NULL,
+  phone VARCHAR(20),
+  avatar VARCHAR(255),
+  role VARCHAR(50) DEFAULT 'user',
+  status VARCHAR(20) DEFAULT 'active',
+  permissions TEXT[],
+  last_login_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_users_username ON users(username);
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_role ON users(role);
+CREATE INDEX idx_users_status ON users(status);
+```
+
+### user_preferences 表
+```sql
+CREATE TABLE IF NOT EXISTS user_preferences (
+  user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  theme VARCHAR(20) DEFAULT 'light',
+  language VARCHAR(10) DEFAULT 'zh-CN',
+  timezone VARCHAR(50) DEFAULT 'Asia/Shanghai',
+  notifications JSONB DEFAULT '{"email": true, "push": true, "sms": false}'::jsonb,
+  display JSONB DEFAULT '{"density": "default", "sidebar_collapsed": false}'::jsonb,
+  default_page VARCHAR(255) DEFAULT '/dashboard',
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+---
+
+## 前端 API 调用
+
+### API 文件
+- **文件路径**: [`frontend/src/api/user.js`](../frontend/src/api/user.js)
+
+### 使用示例
+
+```javascript
+import {
+  getUserInfo,
+  updateUserInfo,
+  changePassword,
+  getUserPreferences,
+  updateUserPreferences
+} from '@/api/user';
+
+// 获取用户信息
+const userInfo = await getUserInfo(userId);
+
+// 更新用户信息
+await updateUserInfo(userId, {
+  username: 'newname',
+  email: 'newemail@example.com',
+  phone: '13900139000'
+});
+
+// 修改密码
+await changePassword(userId, {
+  oldPassword: 'old123',
+  newPassword: 'new456',
+  confirmPassword: 'new456'
+});
+
+// 获取用户偏好
+const preferences = await getUserPreferences(userId);
+
+// 更新用户偏好
+await updateUserPreferences(userId, {
+  theme: 'dark',
+  language: 'zh-CN',
+  notifications: {
+    email: true,
+    push: true,
+    sms: false
+  }
+});
+```
+
+---
+
+## 路由配置
+
+### 前端路由
+在 [`frontend/src/router/index.js`](../frontend/src/router/index.js) 中配置:
+
+```javascript
+{
+  path: '/user',
+  name: 'User',
+  children: [
+    {
+      path: 'profile',
+      name: 'UserProfile',
+      component: () => import('@/views/user/Profile.vue'),
+      meta: { title: '个人信息' }
+    },
+    {
+      path: 'change-password',
+      name: 'ChangePassword',
+      component: () => import('@/views/user/ChangePassword.vue'),
+      meta: { title: '修改密码' }
+    },
+    {
+      path: 'preferences',
+      name: 'UserPreferences',
+      component: () => import('@/views/user/Preferences.vue'),
+      meta: { title: '偏好设置' }
+    }
+  ]
+}
+```
+
+### 后端路由
+在 [`backend/src/routes/users.js`](../backend/src/routes/users.js) 中配置:
+
+```javascript
+import express from 'express';
+import UserController from '../controllers/userController.js';
+
+const router = express.Router();
+
+// 获取用户信息
+router.get('/:id', UserController.getUserInfo);
+
+// 更新用户信息
+router.put('/:id', UserController.updateUserInfo);
+
+// 修改密码
+router.put('/:id/password', UserController.changePassword);
+
+// 获取用户偏好设置
+router.get('/:id/preferences', UserController.getUserPreferences);
+
+// 更新用户偏好设置
+router.put('/:id/preferences', UserController.updateUserPreferences);
+
+export default router;
+```
+
+---
+
+## 安全性考虑
+
+### 1. 密码安全
+- 密码使用 bcrypt 进行加密存储
+- 密码强度验证（至少8位，包含大小写字母和数字）
+- 修改密码需要验证当前密码
+- 密码修改后强制重新登录
+
+### 2. 权限验证
+- 用户只能修改自己的信息
+- 管理员可以修改其他用户的信息（除密码外）
+- 所有接口都需要身份验证
+
+### 3. 数据验证
+- 邮箱格式验证
+- 手机号格式验证
+- 用户名唯一性验证
+- 输入数据长度限制
+
+---
+
+## 功能特性
+
+### 个人信息页面
+- ✅ 用户信息展示
+- ✅ 信息编辑功能
+- ✅ 头像上传
+- ✅ 实时验证
+- ✅ 保存确认
+
+### 密码修改页面
+- ✅ 当前密码验证
+- ✅ 新密码强度检测
+- ✅ 密码确认匹配
+- ✅ 修改成功提示
+- ✅ 自动登出
+
+### 偏好设置页面
+- ✅ 主题切换（浅色/深色/自动）
+- ✅ 语言选择
+- ✅ 时区设置
+- ✅ 通知偏好
+- ✅ 显示密度
+- ✅ 默认页面
+- ✅ 实时预览
+
+---
+
+## 使用流程
+
+### 修改个人信息
+1. 进入个人信息页面
+2. 点击编辑按钮
+3. 修改需要更新的字段
+4. 点击保存按钮
+5. 系统验证并更新信息
+
+### 修改密码
+1. 进入密码修改页面
+2. 输入当前密码
+3. 输入新密码（两次）
+4. 系统验证密码强度
+5. 点击确认修改
+6. 修改成功后自动登出
+
+### 设置偏好
+1. 进入偏好设置页面
+2. 选择主题、语言等选项
+3. 配置通知偏好
+4. 设置显示选项
+5. 点击保存
+6. 设置立即生效
+
+---
+
+## 注意事项
+
+1. **密码安全**: 密码必须符合强度要求，建议定期更换
+2. **邮箱验证**: 修改邮箱后需要进行邮箱验证
+3. **头像大小**: 头像文件大小限制为 2MB
+4. **会话管理**: 修改密码后需要重新登录
+5. **数据备份**: 重要信息修改前建议先备份
+
+---
+
+## 后续优化建议
+
+1. 添加邮箱验证功能
+2. 实现手机号验证
+3. 添加双因素认证
+4. 支持第三方账号绑定
+5. 实现账号注销功能
+6. 添加操作日志记录
+7. 支持多设备管理
+8. 实现账号安全评分
+
+---
+
+## 联系方式
+
+如有问题或建议，请联系开发团队。
