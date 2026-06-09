@@ -1,6 +1,19 @@
 <template>
   <div class="vehicle-safety-dashboard">
     <div class="page-header">
+      <div class="header-title">
+        <h2 class="page-title">
+          车辆安全监控
+          <el-badge 
+            :value="unhandledAlertCount" 
+            :hidden="unhandledAlertCount === 0" 
+            class="page-alert-badge"
+            :max="99"
+          >
+            <el-icon class="header-alert-icon"><Bell /></el-icon>
+          </el-badge>
+        </h2>
+      </div>
       <div class="header-actions">
         <CompanySelect v-model="selectedCompanyId" />
       </div>
@@ -57,6 +70,15 @@
             </div>
           </div>
         </el-card>
+      </el-col>
+    </el-row>
+
+    <el-row :gutter="20" class="alert-row">
+      <el-col :span="24">
+        <AlertInbox 
+          ref="alertInboxRef"
+          @count-updated="handleAlertCountUpdated"
+        />
       </el-col>
     </el-row>
 
@@ -182,7 +204,7 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, watch, computed } from 'vue';
 import { ElMessage } from 'element-plus';
-import { Warning, CircleClose, Clock, CircleCheck, Refresh, Location } from '@element-plus/icons-vue';
+import { Warning, CircleClose, Clock, CircleCheck, Refresh, Location, Bell } from '@element-plus/icons-vue';
 import * as echarts from 'echarts';
 import { 
   getSafetyStatistics, 
@@ -192,6 +214,7 @@ import {
   getHighRiskVehicles 
 } from '@/api/vehicleSafety';
 import CompanySelect from '@/components/CompanySelect.vue';
+import AlertInbox from '@/components/AlertInbox.vue';
 
 const statistics = reactive({
   total_events: 0,
@@ -214,6 +237,8 @@ const highRiskVehicles = ref([]);
 const vehicleLocations = ref([]);
 const selectedVehicleId = ref(null);
 const selectedVehicle = computed(() => vehicleLocations.value.find(v => v.vehicle_id === selectedVehicleId.value));
+const alertInboxRef = ref(null);
+const unhandledAlertCount = ref(0);
 
 let trendChart = null;
 let typeChart = null;
@@ -324,6 +349,11 @@ const fetchHighRiskVehicles = async () => {
 const refreshLocations = () => {
   fetchVehicleLocations();
   ElMessage.success('位置已刷新');
+};
+
+// 处理预警数量更新
+const handleAlertCountUpdated = (count) => {
+  unhandledAlertCount.value = count;
 };
 
 const mapLink = (lat, lng) => {
@@ -481,11 +511,47 @@ watch(selectedCompanyId, async () => {
 
 .page-header {
   display: flex;
-  justify-content: flex-end;
-  margin-bottom: 10px;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.header-title {
+  display: flex;
+  align-items: center;
+}
+
+.page-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  color: #303133;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.page-alert-badge {
+  cursor: pointer;
+}
+
+.header-alert-icon {
+  font-size: 24px;
+  color: #f56c6c;
+  animation: bell-shake 2s infinite;
+}
+
+@keyframes bell-shake {
+  0%, 50%, 100% { transform: rotate(0deg); }
+  5%, 15%, 25% { transform: rotate(15deg); }
+  10%, 20% { transform: rotate(-15deg); }
 }
 
 .stats-row {
+  margin-bottom: 20px;
+}
+
+.alert-row {
   margin-bottom: 20px;
 }
 
