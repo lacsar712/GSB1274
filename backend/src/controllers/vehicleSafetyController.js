@@ -361,6 +361,81 @@ export const getVehicleLocations = async (req, res) => {
   }
 };
 
+export const getAlerts = async (req, res) => {
+  try {
+    const { vehicle_id, alert_level, limit = 50 } = req.query;
+
+    const filters = {
+      vehicle_id,
+      alert_level,
+      limit: parseInt(limit)
+    };
+
+    const [list, total] = await Promise.all([
+      VehicleSafety.findAlerts(filters),
+      VehicleSafety.countUnhandledAlerts(filters)
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        list: Array.isArray(list) ? list.map(r => normalizeRow(r)) : [],
+        total
+      }
+    });
+  } catch (error) {
+    console.error('获取预警列表失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '获取预警列表失败',
+      error: error.message
+    });
+  }
+};
+
+export const handleAlert = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const alert = await VehicleSafety.findAlertById(id);
+    if (!alert) {
+      return res.status(404).json({
+        success: false,
+        message: '预警记录不存在'
+      });
+    }
+
+    if (alert.is_handled) {
+      return res.status(400).json({
+        success: false,
+        message: '该预警已处理'
+      });
+    }
+
+    const success = await VehicleSafety.markAlertHandled(id);
+    if (success) {
+      const total = await VehicleSafety.countUnhandledAlerts();
+      res.json({
+        success: true,
+        message: '预警已标记为已处理',
+        data: { id: parseInt(id), unhandled_total: total }
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        message: '预警状态更新失败'
+      });
+    }
+  } catch (error) {
+    console.error('标记预警已处理失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '标记预警已处理失败',
+      error: error.message
+    });
+  }
+};
+
 export const getHighRiskVehicles = async (req, res) => {
   try {
     const { company_id, start_date, end_date, limit = 10 } = req.query;

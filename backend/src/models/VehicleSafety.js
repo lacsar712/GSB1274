@@ -400,6 +400,100 @@ class VehicleSafety {
     return rows;
   }
 
+  // 获取未处理预警列表（仅返回 is_handled = 0）
+  static async findAlerts(filters = {}) {
+    let query = `
+      SELECT 
+        id,
+        vehicle_id,
+        CONVERT(CAST(vehicle_no AS BINARY) USING utf8mb4) AS vehicle_no,
+        CONVERT(CAST(alert_type AS BINARY) USING utf8mb4) AS alert_type,
+        CONVERT(CAST(alert_level AS BINARY) USING utf8mb4) AS alert_level,
+        CONVERT(CAST(alert_content AS BINARY) USING utf8mb4) AS alert_content,
+        alert_time,
+        is_read,
+        is_handled,
+        handled_at,
+        created_at
+      FROM vehicle_safety_alerts
+      WHERE is_handled = 0
+    `;
+    const params = [];
+
+    if (filters.vehicle_id) {
+      query += ' AND vehicle_id = ?';
+      params.push(filters.vehicle_id);
+    }
+
+    if (filters.alert_level) {
+      query += ' AND alert_level = ?';
+      params.push(filters.alert_level);
+    }
+
+    query += ' ORDER BY alert_time DESC';
+
+    if (filters.limit) {
+      const lim = parseInt(filters.limit);
+      query += ` LIMIT ${lim}`;
+    }
+
+    const [rows] = await pool.execute(query, params);
+    return rows;
+  }
+
+  // 获取未处理预警总数
+  static async countUnhandledAlerts(filters = {}) {
+    let query = 'SELECT COUNT(*) AS total FROM vehicle_safety_alerts WHERE is_handled = 0';
+    const params = [];
+
+    if (filters.vehicle_id) {
+      query += ' AND vehicle_id = ?';
+      params.push(filters.vehicle_id);
+    }
+
+    if (filters.alert_level) {
+      query += ' AND alert_level = ?';
+      params.push(filters.alert_level);
+    }
+
+    const [rows] = await pool.execute(query, params);
+    return rows[0].total;
+  }
+
+  // 标记预警为已处理
+  static async markAlertHandled(id) {
+    const [result] = await pool.execute(
+      `UPDATE vehicle_safety_alerts SET 
+        is_handled = 1,
+        handled_at = NOW()
+      WHERE id = ? AND is_handled = 0`,
+      [id]
+    );
+    return result.affectedRows > 0;
+  }
+
+  // 根据ID获取预警
+  static async findAlertById(id) {
+    const [rows] = await pool.execute(
+      `SELECT 
+        id,
+        vehicle_id,
+        CONVERT(CAST(vehicle_no AS BINARY) USING utf8mb4) AS vehicle_no,
+        CONVERT(CAST(alert_type AS BINARY) USING utf8mb4) AS alert_type,
+        CONVERT(CAST(alert_level AS BINARY) USING utf8mb4) AS alert_level,
+        CONVERT(CAST(alert_content AS BINARY) USING utf8mb4) AS alert_content,
+        alert_time,
+        is_read,
+        is_handled,
+        handled_at,
+        created_at
+      FROM vehicle_safety_alerts
+      WHERE id = ?`,
+      [id]
+    );
+    return rows[0];
+  }
+
   // 获取高风险车辆列表
   static async getHighRiskVehicles(filters = {}) {
     let query = `
