@@ -2,6 +2,11 @@
   <div class="vehicle-safety-dashboard">
     <div class="page-header">
       <div class="header-actions">
+        <el-badge :value="unhandledAlertTotal" :max="99" :hidden="unhandledAlertTotal === 0" class="alert-badge">
+          <el-button :icon="Bell">
+            未处理预警
+          </el-button>
+        </el-badge>
         <CompanySelect v-model="selectedCompanyId" />
       </div>
     </div>
@@ -176,13 +181,19 @@
         </el-card>
       </el-col>
     </el-row>
+
+    <el-row :gutter="20" class="alert-row">
+      <el-col :span="24">
+        <AlertInbox ref="alertInboxRef" @update:total="onAlertTotalChange" />
+      </el-col>
+    </el-row>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, watch, computed } from 'vue';
 import { ElMessage } from 'element-plus';
-import { Warning, CircleClose, Clock, CircleCheck, Refresh, Location } from '@element-plus/icons-vue';
+import { Warning, CircleClose, Clock, CircleCheck, Refresh, Location, Bell } from '@element-plus/icons-vue';
 import * as echarts from 'echarts';
 import { 
   getSafetyStatistics, 
@@ -192,6 +203,7 @@ import {
   getHighRiskVehicles 
 } from '@/api/vehicleSafety';
 import CompanySelect from '@/components/CompanySelect.vue';
+import AlertInbox from './AlertInbox.vue';
 
 const statistics = reactive({
   total_events: 0,
@@ -214,6 +226,13 @@ const highRiskVehicles = ref([]);
 const vehicleLocations = ref([]);
 const selectedVehicleId = ref(null);
 const selectedVehicle = computed(() => vehicleLocations.value.find(v => v.vehicle_id === selectedVehicleId.value));
+
+const alertInboxRef = ref(null);
+const unhandledAlertTotal = ref(0);
+
+const onAlertTotalChange = (total) => {
+  unhandledAlertTotal.value = total;
+};
 
 let trendChart = null;
 let typeChart = null;
@@ -483,6 +502,20 @@ watch(selectedCompanyId, async () => {
   display: flex;
   justify-content: flex-end;
   margin-bottom: 10px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.alert-badge {
+  margin-right: 4px;
+}
+
+.alert-row {
+  margin-bottom: 20px;
 }
 
 .stats-row {
